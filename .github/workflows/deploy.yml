@@ -1,0 +1,60 @@
+name: Deploy Firebase
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: firebase-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install functions
+        run: npm ci --prefix functions
+
+      - name: Functions runtime env from secrets
+        working-directory: functions
+        env:
+          TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
+          SESSION_TTL_HOURS: ${{ vars.SESSION_TTL_HOURS }}
+          PROCESSING_TIMEOUT_MS: ${{ vars.PROCESSING_TIMEOUT_MS }}
+          MAX_PUBLISH_RETRIES: ${{ vars.MAX_PUBLISH_RETRIES }}
+          MEDIA_MAX_BYTES: ${{ vars.MEDIA_MAX_BYTES }}
+        run: |
+          test -n "$TOKEN_ENCRYPTION_KEY" || { echo "Missing secret TOKEN_ENCRYPTION_KEY"; exit 1; }
+          printf '%s\n' \
+            "TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY}" \
+            "SESSION_TTL_HOURS=${SESSION_TTL_HOURS:-168}" \
+            "PROCESSING_TIMEOUT_MS=${PROCESSING_TIMEOUT_MS:-900000}" \
+            "MAX_PUBLISH_RETRIES=${MAX_PUBLISH_RETRIES:-3}" \
+            "MEDIA_MAX_BYTES=${MEDIA_MAX_BYTES:-104857600}" \
+            > .env
+
+      - name: Predeploy check
+        run: npm --prefix functions run predeploy
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy hosting + functions
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          PROJECT="${FIREBASE_PROJECT_ID:-sm-posting-scheduler}"
+          npx --yes firebase-tools@13 deploy --only hosting,functions --project "$PROJECT" --non-interactive

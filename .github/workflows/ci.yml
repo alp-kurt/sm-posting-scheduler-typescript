@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Write test .env
+        run: |
+          printf '%s\n' \
+            'TOKEN_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef' \
+            'SESSION_TTL_HOURS=168' \
+            'PROCESSING_TIMEOUT_MS=900000' \
+            'MAX_PUBLISH_RETRIES=3' \
+            'MEDIA_MAX_BYTES=104857600' \
+            > .env
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
