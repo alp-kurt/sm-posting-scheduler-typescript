@@ -1,0 +1,18 @@
+{
+  "name": "sm-posting-scheduler",
+  "private": true,
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "lint": "npm --prefix functions run lint",
+    "test": "npm --prefix functions run test",
+    "build": "npm --prefix functions run build",
+    "predeploy": "npm --prefix functions run predeploy",
+    "check": "npm run predeploy",
+    "serve": "npm --prefix functions run serve",
+    "deploy": "npm run predeploy && npx --yes firebase-tools@13 deploy --only hosting,functions",
+    "deploy:hosting": "npx --yes firebase-tools@13 deploy --only hosting",
+    "deploy:functions": "npm run predeploy && npx --yes firebase-tools@13 deploy --only functions"
+  }
+}
